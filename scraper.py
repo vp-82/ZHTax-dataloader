@@ -59,8 +59,10 @@ def scrape_website(start_url, max_pages):
         for a in soup.find_all('a', href=True):
             link = urljoin(url, a['href'])
             # Only follow links within the same domain
-            if link.startswith(start_url) and not link.endswith('.pdf') and "#" not in link:  # Also skip if it's a PDF link or contains #
-                if link not in visited and pages_scraped < max_pages:  # Only add link to queue if max_pages is not reached
+            # Also skip if it's a PDF link or contains #
+            if link.startswith(start_url) and not link.endswith('.pdf') and "#" not in link:
+                # Only add link to queue if max_pages is not reached
+                if link not in visited and pages_scraped < max_pages:
                     queue.append(link)
                     logging.info(f"Added URL to queue: {link}")
 
