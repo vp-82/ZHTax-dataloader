@@ -89,7 +89,7 @@ class WebScraper:
                     except google.api_core.exceptions.GoogleAPIError as err:
                         logging.error(f"Failed to upload PDF due to Google API error: {err}")
                         continue
-                    except Exception as err:
+                    except Exception as err: # pylint: disable=W0718
                         logging.error(f"Failed to upload PDF due to unexpected error: {err}")
                         continue
                 elif 'text' not in content_type and 'application/json' not in content_type:
@@ -104,9 +104,10 @@ class WebScraper:
 
             try:
                 soup = BeautifulSoup(response.text, 'html.parser')
-            except ParserRejectedMarkup:
-                logging.error(f"Failed to parse HTML from URL: {url}")
-                return
+            except (ParserRejectedMarkup, Exception) as e: # pylint: disable=W0718
+                logging.error(f"Failed to parse HTML from URL: {url}. Error: {e}")
+                continue
+
 
             # Initialize a string to store the plain text content of the webpage
             text_content = ""
@@ -178,10 +179,10 @@ class WebScraper:
 
 if __name__ == "__main__":
     web_scraper = WebScraper(
-        start_url='https://informatik.lu.ch',
+        start_url='https://www.lu.ch',
         base_url='https://www.lu.ch',
         gcp_bucket='lu-scraper-diin-data',
         pdf_bucket_name='lu-scraper-diin-data-pdf',
-        max_pages=10000
+        max_pages=1000000
     )
     web_scraper.scrape_website()
