@@ -8,12 +8,11 @@ multiple cores on the machine.
 
 import hashlib
 import logging
-import multiprocessing
 
-import google.api_core.exceptions
+import chardet
 import requests
-from bs4 import BeautifulSoup, ParserRejectedMarkup
-from google.cloud import firestore, storage
+from bs4 import BeautifulSoup
+from google.cloud import bigquery, firestore, storage
 
 
 class ScraperService:
@@ -31,14 +30,32 @@ class ScraperService:
         db (firestore.Client): Firestore client.
     """
 
-    def __init__(self, collection_name, pdf_bucket_name, gcp_bucket):
+    def __init__(self, collection_name, pdf_bucket_name, gcp_bucket, dataset_id, table_id):
         """
         Initialize ScraperService with Firestore collection name and GCS bucket names.
         """
+        logging.info("Initializing ScraperService...")
         self.collection_name = collection_name
         self.pdf_bucket_name = pdf_bucket_name
         self.gcp_bucket = gcp_bucket
+        logging.info(f"Firestore collection name: {self.collection_name}")
+        logging.info(f"PDF bucket name: {self.pdf_bucket_name}")
+        logging.info(f"GCP bucket: {self.gcp_bucket}")
+
         self.db = firestore.Client()
+        logging.info("Firestore client initialized.")
+
+        self.bq_client = bigquery.Client()
+        logging.info("BigQuery client initialized.")
+
+        self.dataset_id = dataset_id
+        self.table_id = table_id
+        logging.info(f"Dataset ID: {self.dataset_id}")
+        logging.info(f"Table ID: {self.table_id}")
+
+        self._create_bigquery_table_if_not_exists()
+        logging.info("ScraperService initialized.")
+
 
     def scrape_pending_links(self, limit=None):
         """
@@ -47,13 +64,16 @@ class ScraperService:
         Parameters:
         limit (int, optional): The maximum number of links to scrape.
         """
+        logging.info("Starting to scrape pending links...")
         # Retrieve 'pending' links from Firestore
         links = self._get_pending_links(limit)
+        logging.info(f"Retrieved {len(links)} pending links.")
 
-        # Create a pool of processes
-        with multiprocessing.Pool() as pool:
-            # Map the scrape_link function to the list of links
-            pool.map(self._scrape_link, links)
+        # Loop over the list of links
+        for link in links:
+            # Call the _scrape_link function for each link
+            self._scrape_link(link)
+        logging.info("Finished scraping pending links.")
 
     def _get_pending_links(self, limit=None):
         """
@@ -65,70 +85,78 @@ class ScraperService:
         Returns:
         list: A list of 'pending' links.
         """
+        logging.info("Retrieving pending links...")
         docs = self.db.collection(self.collection_name).where(u'status', u'==', u'pending').stream()
         links = [doc.to_dict()['url'] for doc in docs]
+        logging.info(f"Retrieved {len(links)} pending links.")
         return links[:limit]  # Limit the number of links
 
     def _scrape_link(self, url):
-        """
-        Scrape a link and store the scraped content in GCS.
-
-        Parameters:
-        url (str): The link to scrape.
-        """
-        logging.info(f"Visiting URL: {url}")
-
+        logging.info(f"Starting to scrape URL: {url}")
+        reason_skipped = None
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=30)
             response.raise_for_status()
             content_type = response.headers.get('Content-Type', '')
             if 'application/pdf' in content_type:
                 try:
-                    self._upload_pdf(response.content, url)  # Update this call if your _upload_pdf method has changed
-                except google.api_core.exceptions.GoogleAPIError as err:
-                    logging.error(f"Failed to upload PDF due to Google API error: {err}")
+                    self._upload_pdf(response.content, url)
                 except Exception as err: # pylint: disable=W0718
-                    logging.error(f"Failed to upload PDF due to unexpected error: {err}")
-            elif 'text' not in content_type and 'application/json' not in content_type:
-                logging.info(f"Skipping URL due to non-text Content-Type: {content_type}")
-            else:
-                try:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                except (ParserRejectedMarkup, Exception) as e:  # pylint: disable=W0718
-                    logging.error(f"Failed to parse HTML from URL: {url}. Error: {e}")
+                    logging.error(f"Failed to upload PDF: {err}")
+                    reason_skipped = f"Failed to upload PDF: {err}"
+            elif 'text' in content_type or 'application/json' in content_type:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                text_content = ""
+                char_count = 0
+                is_text = True  # Assume ASCII until proven otherwise
+                for paragraph in soup.find_all('p'):
+                    paragraph_text = paragraph.get_text()
+                    char_count += len(paragraph_text)
+                    if not self._is_text(paragraph_text):
+                        is_text = False
+                    if self._is_text(paragraph_text) and self._has_min_chars(paragraph_text, 1):
+                        text_content += paragraph_text + '\n'
+                if self._has_min_chars(text_content, 1):
+                    self._upload_text(text_content, url)
                 else:
-                    text_content = ""
-                    for paragraph in soup.find_all('p'):
-                        paragraph_text = paragraph.get_text()
-                        if self._is_text_ascii(paragraph_text) and self._has_min_chars(paragraph_text, 1):
-                            text_content += paragraph_text + '\n'
-
-                    if self._has_min_chars(text_content, 1): # Check if overall text content has at least 50 characters
-                        self._upload_text(text_content, url)
-
+                    reason_skipped = "No paragraph with sufficient characters."
+            else:
+                logging.info(f"Skipping URL due to non-text Content-Type: {content_type}")
+                reason_skipped = f"Skipping URL due to non-text Content-Type: {content_type}"
         except requests.HTTPError as err:
             logging.error(f"HTTP error occurred: {err}")
+            reason_skipped = f"HTTP error occurred: {err}"
         except requests.exceptions.RequestException as err:
             logging.error(f"Request error occurred: {err}")
+            reason_skipped = f"Request error occurred: {err}"
 
-        # After successfully scraping a link, update its status to 'scraped'
-        self._update_link_status(url, 'scraped')
+        self._update_link_status(url, 'scraped', is_text, reason_skipped, char_count)
+        self._insert_into_bigquery(url, is_text, char_count, reason_skipped)
 
 
-    def _update_link_status(self, url, status):
+    def _update_link_status(self, url, status, non_ascii, skipped_reason, num_characters):
         """
         Update the status of a link in Firestore.
 
         Parameters:
         url (str): The URL of the link.
         status (str): The new status.
+        non_ascii (bool): Whether the content at the URL contains non-ASCII characters.
+        skipped_reason (str): The reason the URL was skipped, if applicable.
+        num_characters (int): The number of characters in the content at the URL.
         """
+
         doc_id = self._hash_url(url)
-        doc_ref = self.db.collection(self.collection_name).document(doc_id)
+        doc_ref = self.db.collection(self.collection_name).document(doc_id)  # Use the locally initialized client
         doc_ref.update({
-            u'status': status
+            u'status': status,
+            u'non_ascii': non_ascii,
+            u'skipped_reason': skipped_reason,
+            u'num_characters': num_characters
         })
+
         logging.info(f"Updated URL status in Firestore: {url} => {status}")
+
 
     def _upload_pdf(self, content, url):
         """
@@ -184,17 +212,17 @@ class ScraperService:
         """
         return hashlib.md5(url.encode()).hexdigest()
 
-    def _is_text_ascii(self, text):
+    def _is_text(self, text):
         """
-        Check if text is ASCII
+        Check if text is binary or ASCII
 
         Parameters:
         text (str): The text to check.
 
         Returns:
-        bool: True if text is ASCII, False otherwise.
+        bool: True if text is ASCII, False if it's binary.
         """
-        return all(ord(character) < 128 for character in text)
+        return chardet.detect(text.encode())['encoding'] is not None
 
     def _has_min_chars(self, text, min_chars):
         """
@@ -208,7 +236,7 @@ class ScraperService:
         bool: True if text has the minimum number of characters, False otherwise.
         """
         return len(text) >= min_chars
-    
+
     def reset_status(self, status='pending'):
         """
         Reset the status of all documents in Firestore back to a specified status.
@@ -216,7 +244,7 @@ class ScraperService:
         Parameters:
         status (str, optional): The status to reset to. Defaults to 'pending'.
         """
-        docs = self.db.collection(self.collection_name).stream()
+        docs = self.db.collection(self.collection_name).where(u'status', u'!=', status).stream()
 
         for doc in docs:
             doc_ref = self.db.collection(self.collection_name).document(doc.id)
@@ -224,3 +252,49 @@ class ScraperService:
                 u'status': status
             })
         logging.info(f"Reset status of all documents to '{status}'")
+
+    def _create_bigquery_table_if_not_exists(self):
+        """
+        Create a BigQuery table to track details of each link processed.
+        """
+        dataset_ref = self.bq_client.dataset(self.dataset_id)
+        table_ref = dataset_ref.table(self.table_id)
+        try:
+            self.bq_client.get_table(table_ref)
+        except Exception: # pylint: disable=W0718
+            schema = [
+                bigquery.SchemaField("url", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField("is_ascii", "BOOLEAN"),
+                bigquery.SchemaField("char_count", "INTEGER"),
+                bigquery.SchemaField("reason_skipped", "STRING"),
+            ]
+            table = bigquery.Table(table_ref, schema=schema)
+            table = self.bq_client.create_table(table)
+
+    def _insert_into_bigquery(self, url, is_ascii, char_count, reason_skipped):
+        """
+        Insert a new row into the BigQuery table.
+
+        Parameters:
+        url (str): The URL processed.
+        is_ascii (bool): Whether the text content is ASCII.
+        char_count (int): The number of characters in the text content.
+        reason_skipped (str): The reason the URL was skipped, if applicable.
+        """
+        rows_to_insert = [
+            {
+                "url": url,
+                "is_ascii": is_ascii,
+                "char_count": char_count,
+                "reason_skipped": reason_skipped,
+            }
+        ]
+
+        # Make an API request.
+        table_ref = f"{self.bq_client.project}.{self.dataset_id}.{self.table_id}"
+        errors = self.bq_client.insert_rows_json(table_ref, rows_to_insert)
+
+        if errors:
+            print(f"Encountered errors while inserting rows: {errors}")
+        else:
+            print(f"Rows successfully inserted into table {self.table_id}.")
