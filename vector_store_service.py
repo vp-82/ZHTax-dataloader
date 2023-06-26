@@ -7,7 +7,7 @@ from langchain.document_loaders import GCSFileLoader
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Milvus
-from pymilvus import MilvusClient
+from pymilvus import Collection, MilvusClient
 
 load_dotenv()  # take environment variables from .env.
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +38,6 @@ class VectorStoreService:
             "secure": True
         }
 
-        logging.info('Creating connection to Milvus')
         self.client = MilvusClient(
             uri="https://in03-5052868020ac71b.api.gcp-us-west1.zillizcloud.com",
             token=self.milvus_api_key
@@ -88,6 +87,9 @@ class VectorStoreService:
                         connection_args=self.connection_args,
                         collection_name=collection_name  # Use the given collection name
                     )
+                    self.client.flush(collection_name=self.collection_name)
+                    num_entities = self.client.num_entities(collection_name=self.collection_name)
+                    logging.info(f'Number of vectors in the database: {num_entities}')
                     batch_docs = []
             except Exception as e: # pylint: disable=W0718
                 logging.error(f'Exception occurred while processing document {i}: {e}', exc_info=True)
@@ -101,7 +103,9 @@ class VectorStoreService:
                 connection_args=self.connection_args,
                 collection_name=collection_name  # Use the given collection name
             )
-
+            self.client.flush(collection_name=self.collection_name)
+        num_entities = self.client.num_entities(collection_name=self.collection_name)
+        logging.info(f'Number of vectors in the database: {num_entities}')
         logging.info('VectorStoreService has finished processing.')
 
 
