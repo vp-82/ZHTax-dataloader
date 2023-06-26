@@ -79,9 +79,9 @@ class VectorStoreService:
                 docs = text_splitter.split_documents(doc)
 
                 batch_docs.extend(docs)
-                
-                if (i + 1) % batch_size == 0 or (i + 1) == len(blobs):
-                    logging.info(f'Writing batch to Milvus.')
+
+                if (i + 1) % batch_size == 0:
+                    logging.info('Writing batch to Milvus.')
                     vector_store = Milvus.from_documents(
                         batch_docs,  # process a batch of documents
                         embedding=self.embeddings,
@@ -92,7 +92,18 @@ class VectorStoreService:
             except Exception as e: # pylint: disable=W0718
                 logging.error(f'Exception occurred while processing document {i}: {e}', exc_info=True)
 
+        # If there are any documents left in the batch, process them
+        logging.info(f'Writing {len(batch_docs)} remaining batch_docs to Milvus.')
+        if batch_docs:
+            vector_store = Milvus.from_documents(
+                batch_docs,  # process the remaining documents
+                embedding=self.embeddings,
+                connection_args=self.connection_args,
+                collection_name=collection_name  # Use the given collection name
+            )
+
         logging.info('VectorStoreService has finished processing.')
+
 
 
 

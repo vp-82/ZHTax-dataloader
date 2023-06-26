@@ -105,4 +105,4 @@ if __name__ == "__main__":
                 reset_collecion=False,
                 scrape_limit=500000
                 )
-    scraper.run_vector_store_service(num_docs=100, clear_database=True)
+    scraper.run_vector_store_service(clear_database=True)
