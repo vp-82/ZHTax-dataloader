@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from link_collector import LinkCollector
 from scraping_service import ScraperService
+from vector_store_service import VectorStoreService
 
 load_dotenv()  # take environment variables from .env.
 
@@ -75,6 +76,23 @@ class WebScraper:
             logging.info("Link scraping completed.")
         logging.info("Scraper run completed.")
 
+    def run_vector_store_service(self, num_docs=None, clear_database=False):
+        """
+        Runs the VectorStoreService.
+
+        :param num_docs: The number of documents to process. If None, all documents will be processed.
+        :param clear_database: Whether to clear the Milvus database before running the service. Defaults to False.
+        """
+        vector_store_service = VectorStoreService(
+            project_name=os.getenv('GCP_PROJECT_NAME'),
+            bucket_name=os.getenv('GCS_BUCKET_NAME'),
+            collection_name=os.getenv('MILVUS_COLLECTION_NAME')
+        )
+
+        if clear_database:
+            vector_store_service.clear_database()
+
+        vector_store_service.run(num_docs=num_docs)
 
 
 
@@ -82,4 +100,9 @@ class WebScraper:
 if __name__ == "__main__":
 
     scraper = WebScraper()
-    scraper.run(should_collect_links=False, reset_collecion=True, scrape_limit=500000)
+    scraper.run(should_collect_links=False,
+                should_scrape_pending_links=False,
+                reset_collecion=False,
+                scrape_limit=500000
+                )
+    scraper.run_vector_store_service(num_docs=100, clear_database=True)
