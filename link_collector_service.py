@@ -23,12 +23,12 @@ class LinkCollectorService:
         collection_name (str): Name of the Firestore collection to store the links in.
         db (firestore.Client): Firestore client.
     """
-    def __init__(self, collection_name):
+    def __init__(self, run_id,collection_name):
         """
         Initialize LinkCollector with the start URL, base URL, maximum number of pages to scrape,
         and Firestore collection name.
         """
-
+        self.run_id = run_id
         self.collection_name = collection_name
         self.db = firestore.Client()
 
@@ -36,6 +36,7 @@ class LinkCollectorService:
         """
         Collect links from the website and store them in Firestore.
         """
+        logger.info(f"Starting collecting links. Run ID: {self.run_id}")
         visited = set()
         queue = [start_url]
         pages_scraped = 0

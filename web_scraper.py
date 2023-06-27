@@ -7,6 +7,7 @@ Attributes:
 import logging
 import os
 import sys
+import uuid
 
 from dotenv import load_dotenv
 
@@ -42,20 +43,27 @@ class WebScraper:
     Initialize WebScraper with a LinkCollector instance.
     """
     def __init__(self):
+        self.run_id = uuid.uuid4()
         self.link_collector = LinkCollectorService(
+                                            run_id=self.run_id,
                                             collection_name=os.getenv('COLLECTION_NAME')
                                             )
-        self.scraper_Service = ScraperService(collection_name=os.getenv('COLLECTION_NAME'),
-                                               pdf_bucket_name=os.getenv('PDF_BUCKET_NAME'),
-                                               gcp_bucket=os.getenv('GCS_BUCKET_NAME'),
-                                               dataset_id= os.getenv('DATASET_ID'),
-                                               table_id=os.getenv('TABLE_ID'),
-                                               )
+        self.scraper_Service = ScraperService(
+                                            run_id=self.run_id,
+                                            collection_name=os.getenv('COLLECTION_NAME'),
+                                            pdf_bucket_name=os.getenv('PDF_BUCKET_NAME'),
+                                            gcp_bucket=os.getenv('GCS_BUCKET_NAME'),
+                                            dataset_id= os.getenv('DATASET_ID'),
+                                            table_id=os.getenv('TABLE_ID'),
+                                            )
         self.vector_store_service = VectorStoreService(
-            project_name=os.getenv('GCP_PROJECT_NAME'),
-            bucket_name=os.getenv('GCS_BUCKET_NAME'),
-            collection_name=os.getenv('MILVUS_COLLECTION_NAME')
+                                            run_id=self.run_id,
+                                            project_name=os.getenv('GCP_PROJECT_NAME'),
+                                            bucket_name=os.getenv('GCS_BUCKET_NAME'),
+                                            collection_name=os.getenv('MILVUS_COLLECTION_NAME')
         )
+
+        
 
     def run_service(self, service, kwargs):
         """
@@ -80,7 +88,8 @@ if __name__ == "__main__":
     logger.info("-" * 60)  # This will create a line of 60 hyphens
     logger.info("Starting new run...")
 
-    urls = ["https://informatik.lu.ch", "https://steuern.lu.ch"]  # Replace with your list of URLs
+    urls = ["https://www.lu.ch/finanzen", 
+            "https://steuern.lu.ch"]  
 
     for url in urls:
         scraper = WebScraper()

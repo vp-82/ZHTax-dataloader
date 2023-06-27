@@ -17,13 +17,14 @@ class VectorStoreService:
     """
     A service that retrieves text data from Google Cloud Storage and feeds it into a Milvus database.
     """
-    def __init__(self, project_name, bucket_name, collection_name):
+    def __init__(self, run_id, project_name, bucket_name, collection_name):
         """
         Initializes the service with the given project name and bucket name.
 
         :param project_name: The name of the GCP project.
         :param bucket_name: The name of the GCS bucket containing the text data.
         """
+        self.run_id = run_id
         self.project_name = project_name
         self.bucket_name = bucket_name
         self.collection_name = collection_name
@@ -59,7 +60,7 @@ class VectorStoreService:
         :param num_docs: The number of documents to process. If None, all documents will be processed.
         :param collection_name: The name of the collection to store the vector data in. Defaults to 'default'.
         """
-        logger.info('Starting VectorStoreService.')
+        logger.info(f'Starting VectorStoreService. Run ID: {self.run_id}')
 
         # Fetch file names from Firestore instead of directly from GCS
         file_names = self._get_text_filenames()

@@ -8,7 +8,6 @@ multiple cores on the machine.
 
 import hashlib
 import logging
-import uuid
 
 import chardet
 import requests
@@ -34,7 +33,7 @@ class ScraperService:
         db (firestore.Client): Firestore client.
     """
 
-    def __init__(self, collection_name, pdf_bucket_name, gcp_bucket, dataset_id, table_id):
+    def __init__(self, run_id, collection_name, pdf_bucket_name, gcp_bucket, dataset_id, table_id):
         """
         Initialize ScraperService with Firestore collection name and GCS bucket names.
         """
@@ -42,7 +41,7 @@ class ScraperService:
         self.collection_name = collection_name
         self.pdf_bucket_name = pdf_bucket_name
         self.gcp_bucket = gcp_bucket
-        self.run_id = uuid.uuid4()
+        self.run_id = run_id
         logger.info(f"Bigquery run_id: {self.run_id}")
         logger.info(f"Firestore collection name: {self.collection_name}")
         logger.info(f"PDF bucket name: {self.pdf_bucket_name}")
@@ -70,7 +69,7 @@ class ScraperService:
         Parameters:
         limit (int, optional): The maximum number of links to scrape.
         """
-        logger.info("Starting to scrape pending links...")
+        logger.info(f"Starting to scrape pending links. Run ID: {self.run_id}")
         # Retrieve 'pending' links from Firestore
         links = self._get_pending_links(limit)
         logger.info(f"Retrieved {len(links)} pending links.")
