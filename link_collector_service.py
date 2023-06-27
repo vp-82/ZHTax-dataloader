@@ -9,8 +9,10 @@ import requests
 from bs4 import BeautifulSoup, ParserRejectedMarkup
 from google.cloud import firestore
 
+logger = logging.getLogger(__name__)
 
-class LinkCollector:
+
+class LinkCollectorService:
     """
     Class for collecting links from a website and storing them in Firestore.
 
@@ -21,31 +23,29 @@ class LinkCollector:
         collection_name (str): Name of the Firestore collection to store the links in.
         db (firestore.Client): Firestore client.
     """
-    def __init__(self, start_url, base_url, max_pages, collection_name):
+    def __init__(self, collection_name):
         """
         Initialize LinkCollector with the start URL, base URL, maximum number of pages to scrape,
         and Firestore collection name.
         """
-        self.start_url = start_url
-        self.base_url = base_url
-        self.max_pages = max_pages
+
         self.collection_name = collection_name
         self.db = firestore.Client()
 
-    def collect_links(self):
+    def run(self, start_url, base_url, max_pages):
         """
         Collect links from the website and store them in Firestore.
         """
         visited = set()
-        queue = [self.start_url]
+        queue = [start_url]
         pages_scraped = 0
 
-        while queue and pages_scraped < self.max_pages:
+        while queue and pages_scraped < max_pages:
             url = queue.pop(0)
-            logging.info(f"Visiting URL: {url}")
+            logger.info(f"Visiting URL: {url}")
 
             if url in visited or "#" in url:
-                logging.info(f"URL already visited or contains #: {url}")
+                logger.info(f"URL already visited or contains #: {url}")
                 continue
 
             visited.add(url)
@@ -55,35 +55,36 @@ class LinkCollector:
                 response.raise_for_status()
                 content_type = response.headers.get('Content-Type', '')
 
-                if 'text' not in content_type and 'application/json' not in content_type:
-                    logging.info(f"Skipping URL due to non-text Content-Type: {content_type}")
+                if 'text' not in content_type and 'application/json' not in content_type and 'application/pdf' not in content_type:
+                    logger.info(f"Skipping URL due to non-text/non-PDF Content-Type: {content_type}")
                     continue
             except requests.HTTPError as err:
-                logging.error(f"HTTP error occurred: {err}")
+                logger.error(f"HTTP error occurred: {err}")
                 continue
             except requests.exceptions.RequestException as err:
-                logging.error(f"Request error occurred: {err}")
+                logger.error(f"Request error occurred: {err}")
                 continue
 
             try:
                 soup = BeautifulSoup(response.text, 'html.parser')
             except (ParserRejectedMarkup, Exception) as e: # pylint: disable=W0718
-                logging.error(f"Failed to parse HTML from URL: {url}. Error: {e}")
+                logger.error(f"Failed to parse HTML from URL: {url}. Error: {e}")
                 continue
 
             for anchor_tag in soup.find_all('a', href=True):
                 link = urljoin(url, anchor_tag['href'])
-                if link.startswith(self.base_url) and not link.endswith('.pdf') and "#" not in link:
-                    if link not in visited and pages_scraped < self.max_pages:
+                if link.startswith(base_url) and "#" not in link:
+                    if link not in visited and pages_scraped < max_pages:
                         queue.append(link)
-                        logging.info(f"Added URL to queue: {link}")
+                        logger.info(f"Added URL to queue: {link}")
+
 
             self._store_link(url)
 
             pages_scraped += 1
-            logging.info(f'Scraped {url}, total pages scraped: {pages_scraped}')
-            logging.info(f"Number of URLs in queue: {len(queue)}")
-            logging.info(f"Number of URLs visited: {len(visited)}")
+            logger.info(f'Scraped {url}, total pages scraped: {pages_scraped}')
+            logger.info(f"Number of URLs in queue: {len(queue)}")
+            logger.info(f"Number of URLs visited: {len(visited)}")
 
     def _hash_url(self, url):
         """
@@ -113,4 +114,4 @@ class LinkCollector:
             u'status': u'pending',
             u'timestamp': firestore.SERVER_TIMESTAMP
         })
-        logging.info(f"Stored URL in Firestore: {url}")
+        logger.info(f"Stored URL in Firestore: {url}")
