@@ -88,8 +88,12 @@ if __name__ == "__main__":
     logger.info("-" * 60)  # This will create a line of 60 hyphens
     logger.info("Starting new run...")
 
-    urls = ["https://www.lu.ch/finanzen", 
-            "https://steuern.lu.ch"]  
+    urls = ["https://www.lu.ch",
+            "https://immobilien.lu.ch",
+            "https://finanzen.lu.ch",
+            "https://personal.lu.ch",
+            "https://www.lustat.ch",
+            "https://www.lupk.ch"]  
 
     for url in urls:
         scraper = WebScraper()
@@ -101,4 +105,7 @@ if __name__ == "__main__":
         ]
 
         scraper.run(services_to_run)
+    
+    logger.info(f"Finished run with ID {scraper.run_id}")
+    
 
