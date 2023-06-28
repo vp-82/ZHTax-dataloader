@@ -32,7 +32,7 @@ class LinkCollectorService:
         self.collection_name = collection_name
         self.db = firestore.Client()
 
-    def run(self, start_url, base_url, max_pages):
+    def run(self, start_url, base_url, max_pages=1000000):
         """
         Collect links from the website and store them in Firestore.
         """

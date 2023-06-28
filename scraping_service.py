@@ -5,13 +5,14 @@ This service reads 'pending' links from a Firestore database, performs scraping 
 of the links to 'scraped' when finished. The service also uses multiprocessing to parallelize tasks and utilize 
 multiple cores on the machine.
 """
-
 import hashlib
 import logging
+import time
 
 import chardet
 import requests
 from bs4 import BeautifulSoup
+from google.api_core.exceptions import DeadlineExceeded
 from google.cloud import bigquery, firestore, storage
 from google.cloud.firestore_v1.base_query import FieldFilter
 
@@ -152,7 +153,6 @@ class ScraperService:
         self._update_link_status(url, 'scraped', is_text, reason_skipped, char_count, file_name, content_type)
         self._insert_into_bigquery(url, is_text, char_count, reason_skipped, file_name, content_type)
 
-
     def _update_link_status(self, url, status, is_text, skipped_reason, num_characters, file_name, content_type):
         """
         Update the status of a link in Firestore.
@@ -169,16 +169,29 @@ class ScraperService:
 
         doc_id = self._hash_url(url)
         doc_ref = self.db.collection(self.collection_name).document(doc_id)  # Use the locally initialized client
-        doc_ref.update({
-            u'status': status,
-            u'is_text': is_text,
-            u'skipped_reason': skipped_reason,
-            u'num_characters': num_characters,
-            u'file_name': file_name,
-            u'content_type': content_type  # Add content_type to the document
-        })
 
-        logger.info(f"Updated URL status in Firestore: {url} => {status}")
+        # Exponential backoff parameters
+        max_retries = 5
+        base_sleep_time = 1  # in seconds
+
+        for i in range(max_retries):
+            try:
+                doc_ref.update({
+                    u'status': status,
+                    u'is_text': is_text,
+                    u'skipped_reason': skipped_reason,
+                    u'num_characters': num_characters,
+                    u'file_name': file_name,
+                    u'content_type': content_type  # Add content_type to the document
+                })
+                logger.info(f"Updated URL status in Firestore: {url} => {status}")
+                break
+            except DeadlineExceeded:
+                # If a DeadlineExceeded error occurs, wait for a certain amount of time and then retry
+                sleep_time = base_sleep_time * 2 ** i
+                logger.error(f"DeadlineExceeded error occurred when updating URL status. Retrying in {sleep_time} seconds...")
+                time.sleep(sleep_time)
+
 
 
     def _upload_pdf(self, content, url):

@@ -4,6 +4,7 @@ Class for coordinating the web scraping services.
 Attributes:
     link_collector (LinkCollector): LinkCollector instance.
 """
+import argparse
 import logging
 import os
 import sys
@@ -85,27 +86,40 @@ class WebScraper:
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser(description='Web Scraper')
+
+    parser.add_argument('-u', '--urls', nargs='*', help='URLs to scrape')
+    parser.add_argument('-lc', '--link_collector', action='store_true', help='Run LinkCollectorService')
+    parser.add_argument('-ss', '--scraper_service', action='store_true', help='Run ScraperService')
+    parser.add_argument('-vs', '--vector_store', action='store_true', help='Run VectorStoreService')
+
+    args = parser.parse_args()
+
     logger.info("-" * 60)  # This will create a line of 60 hyphens
     logger.info("Starting new run...")
 
-    urls = ["https://www.lu.ch",
-            "https://immobilien.lu.ch",
-            "https://finanzen.lu.ch",
-            "https://personal.lu.ch",
-            "https://www.lustat.ch",
-            "https://www.lupk.ch"]  
+    # Ensure that URLs are provided if the LinkCollectorService is selected
+    if args.link_collector and not args.urls:
+        raise ValueError("Error: The LinkCollectorService requires at least one URL.")
 
-    for url in urls:
+    for url in args.urls or []:
         scraper = WebScraper()
 
-        services_to_run = [
-            (scraper.link_collector, {"start_url": url, "base_url": url, "max_pages": 500000}),
-            (scraper.scraper_Service, {"limit": 500000}),
-            (scraper.vector_store_service, {"num_docs": None}),
-        ]
+        services_to_run = []
+
+        if args.link_collector:
+            services_to_run.append((scraper.link_collector, {"start_url": url, "base_url": url}))
+
+        if args.scraper_service:
+            services_to_run.append((scraper.scraper_Service, {}))
+
+        if args.vector_store:
+            services_to_run.append((scraper.vector_store_service, {}))
 
         scraper.run(services_to_run)
     
     logger.info(f"Finished run with ID {scraper.run_id}")
+
+
     
 
