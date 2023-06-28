@@ -1,4 +1,5 @@
 python3 your_script.py \
 -u https://immobilien.lu.ch https://finanzen.lu.ch https://personal.lu.ch https://www.lustat.ch https://www.lupk.ch \
 -lc \
--ss
+-ss \
+-vs
