@@ -189,7 +189,11 @@ class ScraperService:
             except DeadlineExceeded:
                 # If a DeadlineExceeded error occurs, wait for a certain amount of time and then retry
                 sleep_time = base_sleep_time * 2 ** i
-                logger.error(f"DeadlineExceeded error occurred when updating URL status. Retrying in {sleep_time} seconds...")
+                logger.error(
+                            f"DeadlineExceeded error occurred when updating URL status. "
+                            f"Retrying in {sleep_time} seconds..."
+                            )
+
                 time.sleep(sleep_time)
 
 
@@ -311,7 +315,7 @@ class ScraperService:
         table = self.bq_client.get_table(table_ref)  # Get table reference
 
         rows_to_insert = [
-            {   
+            {
                 "run_id": str(self.run_id),
                 "url": url,
                 "is_ascii": is_ascii,
@@ -327,5 +331,3 @@ class ScraperService:
             logger.error(f"Encountered errors while inserting/updating rows: {errors}")
         else:
             logger.info(f"Rows successfully inserted/updated into table {self.table_id}.")
-
-

@@ -56,9 +56,16 @@ class LinkCollectorService:
                 response.raise_for_status()
                 content_type = response.headers.get('Content-Type', '')
 
-                if 'text' not in content_type and 'application/json' not in content_type and 'application/pdf' not in content_type:
+                # Check for content types
+                is_not_text = 'text' not in content_type
+                is_not_json = 'application/json' not in content_type
+                is_not_pdf = 'application/pdf' not in content_type
+
+                # If none of the content types are found, log a message and continue
+                if is_not_text and is_not_json and is_not_pdf:
                     logger.info(f"Skipping URL due to non-text/non-PDF Content-Type: {content_type}")
                     continue
+
             except requests.HTTPError as err:
                 logger.error(f"HTTP error occurred: {err}")
                 continue

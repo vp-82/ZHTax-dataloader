@@ -145,7 +145,7 @@ class VectorStoreService:
 
         return file_names
 
-    
+
     def _set_status_to_db_inserted(self, file_name):
         """
         Update the status of a document in Firestore to 'db_inserted'.
@@ -168,4 +168,3 @@ class VectorStoreService:
             doc_ref.update({u'status': 'db_inserted'})
 
         logger.info(f"Updated status to 'db_inserted' for file: {file_name}")
-

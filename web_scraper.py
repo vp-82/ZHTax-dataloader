@@ -64,8 +64,6 @@ class WebScraper:
                                             collection_name=os.getenv('MILVUS_COLLECTION_NAME')
         )
 
-        
-
     def run_service(self, service, kwargs):
         """
         Runs a service with the given arguments.
@@ -78,7 +76,8 @@ class WebScraper:
         """
         Runs the services in the order they are provided.
 
-        :param services_to_run: A list of tuples, where each tuple contains a service instance and a dictionary of arguments for its run method.
+        :param services_to_run: List of tuples,
+            where each tuple contains a service instance and a dictionary of arguments for its run method.
         """
         for service, kwargs in services_to_run:
             self.run_service(service, kwargs)
@@ -102,13 +101,25 @@ if __name__ == "__main__":
     if args.link_collector and not args.urls:
         raise ValueError("Error: The LinkCollectorService requires at least one URL.")
 
-    for url in args.urls or []:
+    if args.link_collector:
+        for url in args.urls:
+            scraper = WebScraper()
+
+            services_to_run = []
+
+            services_to_run.append((scraper.link_collector, {"start_url": url, "base_url": url}))
+
+            if args.scraper_service:
+                services_to_run.append((scraper.scraper_Service, {}))
+
+            if args.vector_store:
+                services_to_run.append((scraper.vector_store_service, {}))
+
+            scraper.run(services_to_run)
+    else:
         scraper = WebScraper()
 
         services_to_run = []
-
-        if args.link_collector:
-            services_to_run.append((scraper.link_collector, {"start_url": url, "base_url": url}))
 
         if args.scraper_service:
             services_to_run.append((scraper.scraper_Service, {}))
@@ -117,9 +128,5 @@ if __name__ == "__main__":
             services_to_run.append((scraper.vector_store_service, {}))
 
         scraper.run(services_to_run)
-    
+
     logger.info(f"Finished run with ID {scraper.run_id}")
-
-
-    
-
