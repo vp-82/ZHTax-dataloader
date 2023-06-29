@@ -52,7 +52,8 @@ class LinkCollectorService:
             visited.add(url)
 
             try:
-                response = requests.get(url, timeout=10)
+                headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+                response = requests.get(url, timeout=10, headers=headers)
                 response.raise_for_status()
                 content_type = response.headers.get('Content-Type', '')
 

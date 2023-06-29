@@ -123,6 +123,7 @@ class ScraperService:
                 except Exception as err: # pylint: disable=W0718
                     logger.error(f"Failed to upload PDF: {err}")
                     reason_skipped = f"Failed to upload PDF: {err}"
+                    char_count = 0
             elif 'text' in content_type or 'application/json' in content_type:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 text_content = ""
@@ -140,15 +141,20 @@ class ScraperService:
                     file_name = self._upload_text(text_content, url)
                 else:
                     reason_skipped = "No paragraph with sufficient characters."
+                    logger.info(f"Skipping URL due to empty text. Number of characters: {char_count}")
             else:
                 logger.info(f"Skipping URL due to non-text Content-Type: {content_type}")
                 reason_skipped = f"Skipping URL due to non-text Content-Type: {content_type}"
         except requests.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
             reason_skipped = f"HTTP error occurred: {err}"
+            is_text = False
+            char_count = 0
         except requests.exceptions.RequestException as err:
             logger.error(f"Request error occurred: {err}")
             reason_skipped = f"Request error occurred: {err}"
+            is_text = False
+            char_count = 0
 
         self._update_link_status(url, 'scraped', is_text, reason_skipped, char_count, file_name, content_type)
         self._insert_into_bigquery(url, is_text, char_count, reason_skipped, file_name, content_type)
