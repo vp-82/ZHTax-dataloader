@@ -88,6 +88,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Web Scraper')
 
     parser.add_argument('-u', '--urls', nargs='*', help='URLs to scrape')
+    parser.add_argument('-b', '--base_url', type=str, help='Base URL for relative links')
     parser.add_argument('-lc', '--link_collector', action='store_true', help='Run LinkCollectorService')
     parser.add_argument('-ss', '--scraper_service', action='store_true', help='Run ScraperService')
     parser.add_argument('-vs', '--vector_store', action='store_true', help='Run VectorStoreService')
@@ -107,7 +108,8 @@ if __name__ == "__main__":
 
             services_to_run = []
 
-            services_to_run.append((scraper.link_collector, {"start_url": url, "base_url": url}))
+            base_url = args.base_url if args.base_url else url
+            services_to_run.append((scraper.link_collector, {"start_url": url, "base_url": base_url}))
 
             if args.scraper_service:
                 services_to_run.append((scraper.scraper_Service, {}))
@@ -116,6 +118,7 @@ if __name__ == "__main__":
                 services_to_run.append((scraper.vector_store_service, {}))
 
             scraper.run(services_to_run)
+
     else:
         scraper = WebScraper()
 
