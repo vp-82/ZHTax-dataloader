@@ -53,7 +53,7 @@ class VectorStoreService:
         logger.info('Init completed')
 
 
-    def run(self, num_docs=None, collection_name="LuGPT"):
+    def run(self, num_docs=None, collection_name=None):
         """
         Runs the service, processing each document in the bucket individually.
 

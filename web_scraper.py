@@ -115,7 +115,7 @@ if __name__ == "__main__":
                 services_to_run.append((scraper.scraper_Service, {}))
 
             if args.vector_store:
-                services_to_run.append((scraper.vector_store_service, {}))
+                services_to_run.append((scraper.vector_store_service, {"collection_name": scraper.collection_name}))
 
             scraper.run(services_to_run)
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
             services_to_run.append((scraper.scraper_Service, {}))
 
         if args.vector_store:
-            services_to_run.append((scraper.vector_store_service, {}))
+            services_to_run.append((scraper.vector_store_service, {"collection_name": scraper.collection_name}))
 
         scraper.run(services_to_run)
 
