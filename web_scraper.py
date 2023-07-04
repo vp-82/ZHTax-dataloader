@@ -61,8 +61,9 @@ class WebScraper:
                                             run_id=self.run_id,
                                             project_name=os.getenv('GCP_PROJECT_NAME'),
                                             bucket_name=os.getenv('GCS_BUCKET_NAME'),
-                                            collection_name=os.getenv('MILVUS_COLLECTION_NAME')
-        )
+                                            collection_name=os.getenv('COLLECTION_NAME'),
+                                            milvus_collection_name=os.getenv('MILVUS_COLLECTION_NAME')           
+                                            )
 
     def run_service(self, service, kwargs):
         """
@@ -115,7 +116,7 @@ if __name__ == "__main__":
                 services_to_run.append((scraper.scraper_Service, {}))
 
             if args.vector_store:
-                services_to_run.append((scraper.vector_store_service, {"collection_name": scraper.collection_name}))
+                services_to_run.append((scraper.vector_store_service, {}))
 
             scraper.run(services_to_run)
 
@@ -128,7 +129,7 @@ if __name__ == "__main__":
             services_to_run.append((scraper.scraper_Service, {}))
 
         if args.vector_store:
-            services_to_run.append((scraper.vector_store_service, {"collection_name": scraper.collection_name}))
+            services_to_run.append((scraper.vector_store_service, {}))
 
         scraper.run(services_to_run)
 

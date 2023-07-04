@@ -17,7 +17,7 @@ class VectorStoreService:
     """
     A service that retrieves text data from Google Cloud Storage and feeds it into a Milvus database.
     """
-    def __init__(self, run_id, project_name, bucket_name, collection_name):
+    def __init__(self, run_id, project_name, bucket_name, collection_name, milvus_collection_name):
         """
         Initializes the service with the given project name and bucket name.
 
@@ -28,6 +28,7 @@ class VectorStoreService:
         self.project_name = project_name
         self.bucket_name = bucket_name
         self.collection_name = collection_name
+        self.milvus_collection_name = milvus_collection_name
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.milvus_api_key = os.getenv('MILVUS_API_KEY')
 
@@ -50,10 +51,10 @@ class VectorStoreService:
         self.embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
         logger.info(f'OpenAI embedings: {self.embeddings}')
 
-        logger.info('Init completed')
+        logger.info(f'Init completed. Milvus db: {self.milvus_collection_name}, Firestore db: {self.collection_name}')
 
 
-    def run(self, num_docs=None, collection_name=None):
+    def run(self, num_docs=None):
         """
         Runs the service, processing each document in the bucket individually.
 
@@ -90,10 +91,10 @@ class VectorStoreService:
                         batch_docs,  # process a batch of documents
                         embedding=self.embeddings,
                         connection_args=self.connection_args,
-                        collection_name=collection_name  # Use the given collection name
+                        collection_name=self.milvus_collection_name  # Use the given collection name
                     )
-                    self.client.flush(collection_name=self.collection_name)
-                    num_entities = self.client.num_entities(collection_name=self.collection_name)
+                    self.client.flush(collection_name=self.milvus_collection_name)
+                    num_entities = self.client.num_entities(collection_name=self.milvus_collection_name)
                     logger.info(f'Number of vectors in the database: {num_entities}')
                     batch_docs = []
 
@@ -109,10 +110,10 @@ class VectorStoreService:
                 batch_docs,  # process the remaining documents
                 embedding=self.embeddings,
                 connection_args=self.connection_args,
-                collection_name=collection_name  # Use the given collection name
+                collection_name=self.milvus_collection_name  # Use the given collection name
             )
-            self.client.flush(collection_name=self.collection_name)
-        num_entities = self.client.num_entities(collection_name=self.collection_name)
+            self.client.flush(collection_name=self.milvus_collection_name)
+        num_entities = self.client.num_entities(collection_name=self.milvus_collection_name)
         logger.info(f'Number of vectors in the database: {num_entities}')
         logger.info('VectorStoreService has finished processing.')
 
